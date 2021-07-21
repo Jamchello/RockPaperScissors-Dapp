@@ -1,6 +1,6 @@
 # RockPaperScissors test project: Job application project for Slingshot.
 
--This is my submission to the Slingshot RockPaperScissors job application task.
+- This is my submission to the Slingshot RockPaperScissors job application task.
 - *Please note that no code was provided by Slingshot, only the brief that can be found at the bottom of this ReadMe.*
 
 - Hardhat has been used as the development environment for the task and an extensive set of Waffle tests (using Ether.js) has been created.

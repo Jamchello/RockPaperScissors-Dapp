@@ -1,5 +1,5 @@
 //todo add events for all the important ones.... commited, revealed, game over etc etc.
-
+//todo fix withdraw function
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -9,6 +9,8 @@ contract RPS {
         address addr;
         bytes32 commit;
         string revealed;
+        uint256 staked;
+        uint256 winnings;
     }
     struct Move {
         uint256 value;
@@ -26,8 +28,7 @@ contract RPS {
 
     bool public gameIsLive = true;
     address public winner;
-
-    mapping(address => uint256) public balance;
+    address initiator;
 
     constructor(
         address _player1Address,
@@ -38,12 +39,25 @@ contract RPS {
         moves["rock"] = Move({value: 0, valid: true});
         moves["paper"] = Move({value: 1, valid: true});
         moves["scissors"] = Move({value: 2, valid: true});
-        players[0] = Player({addr: _player1Address, commit: "", revealed: ""});
-        players[1] = Player({addr: _player2Address, commit: "", revealed: ""});
+        players[0] = Player({
+            addr: _player1Address,
+            commit: "",
+            revealed: "",
+            staked: 0,
+            winnings: 0
+        });
+        players[1] = Player({
+            addr: _player2Address,
+            commit: "",
+            revealed: "",
+            staked: 0,
+            winnings: 0
+        });
         buyIn = _buyIn;
         SlingBux = IERC20(_tokenContract);
         addressToID[_player1Address] = 0;
         addressToID[_player2Address] = 1;
+        initiator = _player1Address;
     }
 
     modifier onlyPlayers() {
@@ -51,12 +65,13 @@ contract RPS {
         _;
     }
     modifier readyToReveal() {
-        require(
-            (!isEmpty(players[0].commit) && !isEmpty(players[1].commit)),
-            "Both players must commit."
-        );
+        require((bothCommited()), "Both players must commit.");
         require(gameIsLive, "Winner already selected.");
         _;
+    }
+
+    function bothCommited() internal view returns (bool) {
+        return !isEmpty(players[0].commit) && !isEmpty(players[1].commit);
     }
 
     function isEmpty(bytes32 _bytes) internal pure returns (bool) {
@@ -68,40 +83,64 @@ contract RPS {
             keccak256(abi.encodePacked("")));
     }
 
-    function selectWinner() internal {
-        if (!isEmpty(players[1].revealed) && !isEmpty(players[0].revealed)) {
-            uint256 p1_move = moves[players[0].revealed].value;
-            uint256 p2_move = moves[players[1].revealed].value;
-            if (p1_move != p2_move) {
-                winner = (p1_move == (p2_move + 1) % 3)
-                    ? players[0].addr
-                    : players[1].addr;
-                balance[winner] = buyIn * 2;
-            } else {
-                balance[players[0].addr] = buyIn;
-                balance[players[1].addr] = buyIn;
-            }
-            gameIsLive = false;
-        }
+    function closeGame() internal {
+        players[0].staked = 0;
+        players[1].staked = 0;
+        gameIsLive = false;
     }
 
-    function commitMove(bytes32 _move) public onlyPlayers {
+    function calculateAllowance(address _sender)
+        internal
+        view
+        returns (uint256)
+    {
+        return
+            SlingBux.allowance(_sender, address(this)) +
+            players[addressToID[_sender]].winnings;
+    }
+
+    function debitBalances(address _address) internal {
+        uint256 playerWinnings = players[addressToID[_address]].winnings;
+        if (playerWinnings >= buyIn) {
+            players[addressToID[_address]].winnings = playerWinnings - buyIn;
+        } else {
+            SlingBux.transferFrom(
+                _address,
+                address(this),
+                buyIn - playerWinnings
+            );
+            players[addressToID[_address]].winnings = 0;
+        }
+        players[addressToID[msg.sender]].staked = buyIn;
+    }
+
+    function commitMove(bytes32 _move)
+        external
+        onlyPlayers
+        returns (bool success)
+    {
         require(
             isEmpty(players[addressToID[msg.sender]].commit),
             "Already made a commitment"
         );
-        require(
-            SlingBux.allowance(msg.sender, address(this)) >= buyIn,
-            "Allowed balance not sufficient for game deposit"
-        );
-        SlingBux.transferFrom(msg.sender, address(this), buyIn);
-        players[addressToID[msg.sender]].commit = _move;
+        if (players[addressToID[msg.sender]].staked < buyIn) {
+            require(
+                calculateAllowance(msg.sender) >= buyIn,
+                "Allowed balance not sufficient for game deposit"
+            );
+            debitBalances(msg.sender);
+            players[addressToID[msg.sender]].commit = _move;
+        } else {
+            players[addressToID[msg.sender]].commit = _move;
+        }
+        return true;
     }
 
     function revealMove(string memory _move, string memory _seed)
-        public
+        external
         onlyPlayers
         readyToReveal
+        returns (bool success)
     {
         uint256 playerID = addressToID[msg.sender];
         require(
@@ -112,36 +151,74 @@ contract RPS {
         players[playerID].revealed = _move;
         if (!moves[_move].valid) {
             //Code executed when invalid move...
-            gameIsLive = false;
             if (playerID == 0) {
-                balance[players[1].addr] = 2 * buyIn;
+                players[1].winnings += (2 * buyIn);
                 winner = players[1].addr;
+                closeGame();
             } else if (playerID == 1) {
-                balance[players[0].addr] = 2 * buyIn;
+                players[0].winnings += (2 * buyIn);
                 winner = players[0].addr;
+                closeGame();
             }
         } else {
             selectWinner();
         }
+
+        return true;
     }
 
-    function withdraw() external {
-        if (gameIsLive) {
-            require(
-                msg.sender == players[0].addr,
-                "Only player 1 can withdraw early"
-            );
-            require(
-                isEmpty(players[1].commit),
-                "Player 2 has made a move, no early withdrawals."
-            );
-
-            SlingBux.transfer(players[0].addr, buyIn);
-        } else {
-            require(balance[msg.sender] > 0, "No balance to withdraw.");
-            uint256 toSend = balance[msg.sender];
-            balance[msg.sender] = 0;
-            SlingBux.transfer(msg.sender, toSend);
+    function selectWinner() internal {
+        if (!isEmpty(players[1].revealed) && !isEmpty(players[0].revealed)) {
+            uint256 p1_move = moves[players[0].revealed].value;
+            uint256 p2_move = moves[players[1].revealed].value;
+            if (p1_move != p2_move) {
+                winner = (p1_move == (p2_move + 1) % 3)
+                    ? players[0].addr
+                    : players[1].addr;
+                players[addressToID[winner]].winnings += (buyIn * 2);
+            } else {
+                players[0].winnings += buyIn;
+                players[1].winnings += buyIn;
+            }
+            closeGame();
         }
+    }
+
+    function withdrawStake() external onlyPlayers returns (bool success) {
+        require(msg.sender == initiator, "Only initiator can withdraw early");
+        require(
+            !bothCommited(),
+            "Both players have commited, no early withdrawals"
+        );
+        SlingBux.transfer(initiator, players[addressToID[msg.sender]].staked);
+        closeGame();
+        return true;
+    }
+
+    function withdrawWinnings() external onlyPlayers returns (bool success) {
+        require(players[addressToID[msg.sender]].winnings > 0, "No winnings");
+        uint256 toSend = players[addressToID[msg.sender]].winnings;
+        players[addressToID[msg.sender]].winnings = 0;
+        SlingBux.transfer(msg.sender, toSend);
+        return true;
+    }
+
+    function rematch(uint256 _newBuyIn)
+        external
+        onlyPlayers
+        returns (bool success)
+    {
+        require(!gameIsLive, "Finish existing game before starting a rematch");
+        require(calculateAllowance(msg.sender) > _newBuyIn);
+        buyIn = _newBuyIn;
+        debitBalances(msg.sender);
+        winner = address(0);
+        initiator = msg.sender;
+        gameIsLive = true;
+        players[0].commit = "";
+        players[0].revealed = "";
+        players[1].commit = "";
+        players[1].revealed = "";
+        return true;
     }
 }

@@ -60,14 +60,13 @@ describe("RPS", function () {
         await slingbux.connect(player1).approve(rps.address, allowance);
         await slingbux.connect(player2).approve(rps.address, allowance);
     })
-    //TODO: Finish up the test cases
+
     it('Should setup the initial contract state according to constuctor variables', async function () {
         expect(await rps.buyIn()).to.equal(buyIn);
         expect(await p1.addr).to.equal(player1.address);
         expect(await p2.addr).to.equal(player2.address);
     });
 
-    //test unable to play from non-allowed address
     it('Should not let non-players make moves', async function () {
         expect(await rps.buyIn()).to.equal(buyIn);
         await expect(rps.connect(player3).commitMove(wining_commit)).to.be.reverted;
@@ -137,6 +136,18 @@ describe("RPS", function () {
         expect(await p1.winnings).to.equal(0);
         expect(await slingbux.balanceOf(player1.address)).to.equal("101000000000000000000");
     });
+
+    it('Should return the original buy in to both players in the case of a draw', async function () {
+        await rps.connect(player1).commitMove(wining_commit);
+        await rps.connect(player2).commitMove(wining_commit);
+        await rps.connect(player1).revealMove(...winning_reveal);
+        await rps.connect(player2).revealMove(...winning_reveal);
+        p1 = await rps.players(0);
+        p2 = await rps.players(1);
+        expect(await p1.winnings).to.equal(buyIn);
+        expect(await p2.winnings).to.equal(buyIn);
+    });
+
 
     it('Should not allow a loser to withdraw the game winnings', async function () {
         await rps.connect(player1).commitMove(wining_commit);

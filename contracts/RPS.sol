@@ -1,10 +1,12 @@
-//todo add events for all the important ones.... commited, revealed, game over etc etc.
-//todo fix withdraw function
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+/// @title Rock Paper Scissors implemented with a commit-reveal pattern
+/// @author Jamie Michel
 contract RPS {
+    /// @notice Struct for storing all data about a player and their state within the game,
     struct Player {
         address addr;
         bytes32 commit;
@@ -12,22 +14,26 @@ contract RPS {
         uint256 staked;
         uint256 winnings;
     }
+    /// @notice Data structure for representing all valid "moves"
     struct Move {
         uint256 value;
         bool valid;
     }
-
+    /// @notice an array for holding both players of the game
     Player[2] public players;
+    /// @notice a mapping that can be used to assign an address to a player ID - used to locate a player in the array.
     mapping(address => uint256) addressToID;
-
+    /// @notice interface for the ERC-20 token being used for the wagers - contract for token set during deployment.
     IERC20 public SlingBux;
-
+    /// @notice a mapping that can be used to look up the validity of moves during the reveal phase
     mapping(string => Move) moves;
-
+    /// @notice the buyIn value set for the current round of the game
     uint256 public buyIn;
-
+    ///@notice the state of the game
     bool public gameIsLive = true;
+    ///@notice winner of this round
     address public winner;
+    ///@notice address of the player who started the current round
     address initiator;
 
     constructor(
@@ -36,9 +42,11 @@ contract RPS {
         uint256 _buyIn,
         address _tokenContract
     ) {
+        /// @notice Populating the moves mapping with all the valid moves.
         moves["rock"] = Move({value: 0, valid: true});
         moves["paper"] = Move({value: 1, valid: true});
         moves["scissors"] = Move({value: 2, valid: true});
+        /// @notice Populating the array of players with the structured data
         players[0] = Player({
             addr: _player1Address,
             commit: "",
@@ -55,6 +63,7 @@ contract RPS {
         });
         buyIn = _buyIn;
         SlingBux = IERC20(_tokenContract);
+        /// @notice Creating the mapping for address->ID
         addressToID[_player1Address] = 0;
         addressToID[_player2Address] = 1;
         initiator = _player1Address;
@@ -70,25 +79,32 @@ contract RPS {
         _;
     }
 
+    ///@notice Checks if both players have comitted their moves
     function bothCommited() internal view returns (bool) {
         return !isEmpty(players[0].commit) && !isEmpty(players[1].commit);
     }
 
+    ///@notice Checks if _bytes is an empty/zero value.
     function isEmpty(bytes32 _bytes) internal pure returns (bool) {
         return (_bytes == "");
     }
 
+    ///@notice Checks if _string is an empty/zero value.
     function isEmpty(string memory _string) internal pure returns (bool) {
         return (keccak256(abi.encodePacked(_string)) ==
             keccak256(abi.encodePacked("")));
     }
 
+    ///@notice Terminates a live game
     function closeGame() internal {
         players[0].staked = 0;
         players[1].staked = 0;
         gameIsLive = false;
     }
 
+    ///@notice Function that caclulates the maximum a user can spend on a buyIn based on their winnings and their ammount of tokens approved to this contract.
+    ///@param _sender the address who's spending power will be checked.
+    ///@return the spending power of _sender
     function calculateAllowance(address _sender)
         internal
         view
@@ -99,6 +115,8 @@ contract RPS {
             players[addressToID[_sender]].winnings;
     }
 
+    ///@notice Internal function which spends a users winnings or ERC-20 tokens (if they exist) on creating the buyIn stake
+    ///@param _address the address to debit winnings / SlingBux (ERC-20) tokens from.
     function debitBalances(address _address) internal {
         uint256 playerWinnings = players[addressToID[_address]].winnings;
         if (playerWinnings >= buyIn) {
@@ -114,6 +132,8 @@ contract RPS {
         players[addressToID[msg.sender]].staked = buyIn;
     }
 
+    ///@notice Function that allows a user to commit their hashed moves
+    ///@return success Whether function execution was successful or not.
     function commitMove(bytes32 _move)
         external
         onlyPlayers
@@ -136,6 +156,8 @@ contract RPS {
         return true;
     }
 
+    ///@notice Function that allows a user to "reveal" their move along with seed-phrase
+    ///@return success Whether function execution was successful or not.
     function revealMove(string memory _move, string memory _seed)
         external
         onlyPlayers
@@ -167,6 +189,7 @@ contract RPS {
         return true;
     }
 
+    ///@notice Calculates the winner according to traditional Rock, Paper, Scissor logic
     function selectWinner() internal {
         if (!isEmpty(players[1].revealed) && !isEmpty(players[0].revealed)) {
             uint256 p1_move = moves[players[0].revealed].value;
@@ -184,6 +207,8 @@ contract RPS {
         }
     }
 
+    ///@notice Function that allows a user to withdraw their stake if their opponent hasn't commited anything yet
+    ///@return success Whether function execution was successful or not.
     function withdrawStake() external onlyPlayers returns (bool success) {
         require(msg.sender == initiator, "Only initiator can withdraw early");
         require(
@@ -195,6 +220,8 @@ contract RPS {
         return true;
     }
 
+    ///@notice Function that allows a user to withdraw the entirety of their winnings
+    ///@return success Whether function execution was successful or not.
     function withdrawWinnings() external onlyPlayers returns (bool success) {
         require(players[addressToID[msg.sender]].winnings > 0, "No winnings");
         uint256 toSend = players[addressToID[msg.sender]].winnings;
@@ -203,6 +230,9 @@ contract RPS {
         return true;
     }
 
+    ///@notice Function that can be called by users to initiate a rematch
+    ///@param _newBuyIn The new buyIn for the game
+    ///@return success Whether function execution was successful or not.
     function rematch(uint256 _newBuyIn)
         external
         onlyPlayers

@@ -18,7 +18,7 @@
 5.  The winner can either withdraw their winnings, or elect to play another (*if the loser wants to of course!*).
 6.  A rematch can be started by calling the rematch function, and supplying a new buyIn value. ***Note:** If a player has an existing balance ("winnings") when starting a rematch, this will always be debited before attempting to transfer the remainder of the owed buyIn balance*
 
-*** The majority of the functionality has been described above / can be found detailed below in the brief! ***
+***The majority of the functionality has been described above / can be found detailed below in the brief!***
 
 # The original brief provided for the job application by Slingshot:
 

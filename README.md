@@ -1,13 +1,13 @@
 # RockPaperScissors test project: Job application project for Slingshot.
 
-This is my submission to the Slingshot RockPaperScissors job application task.
-*Please note that no code was provided by Slingshot, only the brief that can be found at the bottom of this ReadMe.*
+-This is my submission to the Slingshot RockPaperScissors job application task.
+- *Please note that no code was provided by Slingshot, only the brief that can be found at the bottom of this ReadMe.*
 
-Hardhat has been used as the development environment for the task and an extensive set of Waffle tests (using Ether.js) has been created.
+- Hardhat has been used as the development environment for the task and an extensive set of Waffle tests (using Ether.js) has been created.
 
-My implementation leverages the "commit & reveal" pattern with the keccak256 hashing algorithm; this is essential for turn-based on-chain games to prevent players from peeping eachothers answers.
+- My implementation leverages the "commit & reveal" pattern with the keccak256 hashing algorithm; this is essential for turn-based on-chain games to prevent players from peeping eachothers answers.
 
-The front-end (*pending implementation*) will need to encode players inputs with the hashing algorithm using user-defined "seed phrase" before proposing the commit transaction to MetaMask.
+- The front-end (*pending implementation*) will need to encode players inputs with the hashing algorithm using user-defined "seed phrase" before proposing the commit transaction to MetaMask.
 
 ## Flow of the game
 

@@ -100,6 +100,22 @@ describe("RPS", function () {
         await expect(rps.connect(player1).withdrawStake()).to.be.revertedWith("Withdrawal Conditions not met.");
     });
 
+    it("Should not allow early withdrawals before time limit if opponent hasn't revealed", async function () {
+        await rps.connect(player1).commitMove(wining_commit);
+        await rps.connect(player2).commitMove(losing_commit);
+        await rps.connect(player1).revealMove(...winning_reveal);
+        await expect(rps.connect(player1).withdrawStake()).to.be.revertedWith("Withdrawal Conditions not met.");
+    });
+
+    it("Should allow early withdrawal after time limit if opponent hasn't revealed  ", async function () {
+        await rps.connect(player1).commitMove(wining_commit);
+        await rps.connect(player2).commitMove(losing_commit);
+        await rps.connect(player1).revealMove(...winning_reveal);
+        await network.provider.send("evm_increaseTime", [95040])//Increasing the time by 26.4 hrs
+        await rps.connect(player1).withdrawStake();
+        expect(await slingbux.balanceOf(player1.address)).to.equal("100000000000000000000");
+    });
+
     it('Should not allow players to reveal using incorrect values', async function () {
         await rps.connect(player1).commitMove(wining_commit);
         await rps.connect(player2).commitMove(losing_commit);

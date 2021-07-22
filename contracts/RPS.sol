@@ -224,8 +224,11 @@ contract RPS {
                     timeLimit < block.timestamp),
             "Withdrawal Conditions not met."
         );
-
-        SlingBux.transfer(msg.sender, players[addressToID[msg.sender]].staked);
+        SlingBux.transfer(
+            msg.sender,
+            bothCommited() ? buyIn * 2 : players[addressToID[msg.sender]].staked
+        );
+        winner = msg.sender;
         closeGame();
         return true;
     }

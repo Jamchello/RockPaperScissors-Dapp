@@ -35,6 +35,8 @@ contract RPS {
     address public winner;
     ///@notice address of the player who started the current round
     address initiator;
+    ///@notice time-stamp at which the stake can be claimed by the opponent if a player doesnt reveal their move.
+    uint256 public timeLimit = 0;
 
     constructor(
         address _player1Address,
@@ -171,6 +173,7 @@ contract RPS {
             "Move doesn't match hash"
         );
         players[playerID].revealed = _move;
+        timeLimit = block.timestamp + 24 hours;
         if (!moves[_move].valid) {
             //Code executed when invalid move...
             if (playerID == 0) {
@@ -207,15 +210,22 @@ contract RPS {
         }
     }
 
+    //Todo Fix tomorrow
     ///@notice Function that allows a user to withdraw their stake if their opponent hasn't commited anything yet
     ///@return success Whether function execution was successful or not.
     function withdrawStake() external onlyPlayers returns (bool success) {
-        require(msg.sender == initiator, "Only initiator can withdraw early");
+        require(gameIsLive, "Can only withdraw stake during a live game");
         require(
-            !bothCommited(),
-            "Both players have commited, no early withdrawals"
+            (!bothCommited() &&
+                msg.sender == initiator &&
+                players[addressToID[initiator]].staked != 0) ||
+                (bothCommited() &&
+                    !isEmpty(players[addressToID[msg.sender]].revealed) &&
+                    timeLimit < block.timestamp),
+            "Withdrawal Conditions not met."
         );
-        SlingBux.transfer(initiator, players[addressToID[msg.sender]].staked);
+
+        SlingBux.transfer(msg.sender, players[addressToID[msg.sender]].staked);
         closeGame();
         return true;
     }

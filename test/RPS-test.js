@@ -91,13 +91,13 @@ describe("RPS", function () {
 
     it('Should only let initiating player withdraw early', async function () {
         await rps.connect(player1).commitMove(wining_commit);
-        await expect(rps.connect(player2).withdrawStake()).to.be.revertedWith("Only initiator can withdraw early");
+        await expect(rps.connect(player2).withdrawStake()).to.be.revertedWith("Withdrawal Conditions not met.");
     });
 
     it('Should not allow player1 to withdraw early if player2 made a move.', async function () {
         await rps.connect(player1).commitMove(wining_commit);
         await rps.connect(player2).commitMove(losing_commit);
-        await expect(rps.connect(player1).withdrawStake()).to.be.revertedWith("Both players have commited, no early withdrawals");
+        await expect(rps.connect(player1).withdrawStake()).to.be.revertedWith("Withdrawal Conditions not met.");
     });
 
     it('Should not allow players to reveal using incorrect values', async function () {

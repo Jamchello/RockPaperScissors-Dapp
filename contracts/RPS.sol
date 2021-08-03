@@ -38,6 +38,12 @@ contract RPS {
     ///@notice time-stamp at which the stake can be claimed by the opponent if a player doesnt reveal their move.
     uint256 public timeLimit = 0;
 
+    ///@notice The events for the game:
+    event moveCommited(address _player);
+    event winnerSelected(address _winner, uint256 _timestamp);
+    event moveRevealed(address _player, string _move);
+    event rematchTriggered(uint256 _buyIn);
+
     constructor(
         address _player1Address,
         address _player2Address,
@@ -155,6 +161,8 @@ contract RPS {
         } else {
             players[addressToID[msg.sender]].commit = _move;
         }
+
+        emit moveCommited(msg.sender);
         return true;
     }
 
@@ -174,6 +182,7 @@ contract RPS {
         );
         players[playerID].revealed = _move;
         timeLimit = block.timestamp + 24 hours;
+        emit moveRevealed(msg.sender, _move);
         if (!moves[_move].valid) {
             //Code executed when invalid move...
             if (playerID == 0) {
@@ -188,7 +197,6 @@ contract RPS {
         } else {
             selectWinner();
         }
-
         return true;
     }
 
@@ -206,6 +214,7 @@ contract RPS {
                 players[0].winnings += buyIn;
                 players[1].winnings += buyIn;
             }
+            emit winnerSelected(winner, block.timestamp);
             closeGame();
         }
     }
@@ -262,6 +271,7 @@ contract RPS {
         players[0].revealed = "";
         players[1].commit = "";
         players[1].revealed = "";
+        emit rematchTriggered(buyIn);
         return true;
     }
 }
